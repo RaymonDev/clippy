@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "C:\Users\ramon\Desktop\Clippy-master\Clippy-master\clippy-python\clippy.py", line 667, in <module>
+    app.run()
+    ~~~~~~~^^
+  File "C:\Users\ramon\Desktop\Clippy-master\Clippy-master\clippy-python\clippy.py", line 660, in run
+    self.root.mainloop()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ramon\Desktop\Clippy-master\Clippy-master\.venv\Lib\site-packages\customtkinter\windows\ctk_tk.py", line 165, in mainloop
+    super().mainloop(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\ramon\AppData\Local\Programs\Python\Python314\Lib\tkinter\__init__.py", line 1613, in mainloop
+    self.tk.mainloop(n)
+    ~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\ramon\AppData\Local\Programs\Python\Python314\Lib\tkinter\__init__.py", line 2077, in __call__
+    def __call__(self, *args):
+    
+KeyboardInterrupt
