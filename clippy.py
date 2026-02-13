@@ -833,6 +833,7 @@ class SpeechBubble:
         self.parent = parent
         self.top = None
         self._hide_job = None
+        self._follow_job = None
 
     def show(self, text: str, duration_ms: int = 4000):
         self.hide()
@@ -851,17 +852,41 @@ class SpeechBubble:
         lbl.pack()
 
         # Position above Clippy
-        self.parent.update_idletasks()
-        px = self.parent.winfo_x()
-        py = self.parent.winfo_y()
-        self.top.update_idletasks()
-        bw = self.top.winfo_reqwidth()
-        self.top.geometry(f"+{px + 20}+{py - self.top.winfo_reqheight() - 10}")
+        self._update_position()
+
+        # Continuously follow Clippy while bubble is visible
+        self._start_following()
 
         if duration_ms > 0:
             self._hide_job = self.parent.after(duration_ms, self.hide)
 
+    def _update_position(self):
+        """Reposition bubble above Clippy's current location."""
+        if not self.top:
+            return
+        try:
+            self.parent.update_idletasks()
+            px = self.parent.winfo_x()
+            py = self.parent.winfo_y()
+            self.top.update_idletasks()
+            bh = self.top.winfo_reqheight()
+            self.top.geometry(f"+{px + 20}+{py - bh - 10}")
+        except Exception:
+            pass
+
+    def _start_following(self):
+        """Periodically update bubble position to follow Clippy."""
+        if self._follow_job:
+            self.parent.after_cancel(self._follow_job)
+            self._follow_job = None
+        if self.top:
+            self._update_position()
+            self._follow_job = self.parent.after(50, self._start_following)
+
     def hide(self):
+        if self._follow_job:
+            self.parent.after_cancel(self._follow_job)
+            self._follow_job = None
         if self._hide_job:
             self.parent.after_cancel(self._hide_job)
             self._hide_job = None
@@ -914,6 +939,7 @@ class ChatWindow:
             self.top.lift()
             return
         self.is_open = True
+        self.is_streaming = False
 
         self.top = tk.Toplevel(self.app.root)
         self.top.overrideredirect(True)
@@ -1013,6 +1039,8 @@ class ChatWindow:
         if self.is_streaming:
             self.cancel_event.set()
         self.is_open = False
+        self.is_streaming = False
+        self._bot_label = None
         if self.top:
             try:
                 self.canvas.unbind_all("<MouseWheel>")
