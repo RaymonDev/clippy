@@ -1,6 +1,6 @@
-# Clippy — Local AI Desktop Assistant (Python)
+# Clippy
 
-A self-contained, animated desktop companion powered by **Ollama** — 100% local, no cloud, no API keys.
+A self-contained, animated desktop companion powered by **Ollama**
 
 Clippy lives on your desktop as a transparent overlay. He idles, roams, shows tips, and chats with you through a local LLM.
 
