@@ -514,7 +514,7 @@ class ActionExecutor:
         "microsoft edge": ["msedge", "msedge.exe"],
         "notepad": ["notepad", "notepad.exe"],
         "spotify": ["spotify", "spotify.exe"],
-        "whatsapp": ["WhatsApp", "WhatsApp.exe"],
+        "whatsapp": ["WhatsApp", "WhatsApp.exe", "WhatsApp.Root", "WhatsApp.Root.exe"],
         "discord": ["discord", "discord.exe", "update.exe"],
         "slack": ["slack", "slack.exe"],
         "teams": ["teams", "teams.exe", "ms-teams.exe"],
@@ -559,8 +559,8 @@ class ActionExecutor:
             except Exception:
                 continue
         if killed:
-            return f"\u274c Closed: {name}"
-        return f"\u26a0\ufe0f Couldn't find '{name}' running."
+            return f"✅ Closed: {name}"
+        return f"⚠️ Couldn't find '{name}' running."
 
     @staticmethod
     def _search_web(query: str) -> str:
@@ -677,6 +677,7 @@ class IntentDetector:
         "yt":           "https://www.youtube.com",
         "google":       "https://www.google.com",
         "gmail":        "https://mail.google.com",
+        "google calendar": "https://calendar.google.com",
         "github":       "https://github.com",
         "reddit":       "https://www.reddit.com",
         "twitter":      "https://twitter.com",
@@ -771,7 +772,9 @@ class IntentDetector:
                 return actions
 
             # Check known websites
-            for site_name, site_url in IntentDetector.SITES.items():
+            # Sort by length descending to match "google calendar" before "google"
+            msg_sites = sorted(IntentDetector.SITES.items(), key=lambda x: len(x[0]), reverse=True)
+            for site_name, site_url in msg_sites:
                 if site_name in target:
                     actions.append(("OPEN_URL", site_url))
                     return actions
@@ -1154,7 +1157,7 @@ class ChatWindow:
                 for cmd, arg in intents:
                     result = ActionExecutor.run(cmd, arg)
                     if result and self.top:
-                        self.top.after(0, lambda r=result: self._add_bubble(r, is_action=True))
+                        self.top.after(0, lambda r=result: self._add_action_result(r))
             threading.Thread(target=_run_intents, daemon=True).start()
 
         # ── Still send to LLM for a friendly response ──
@@ -1307,8 +1310,12 @@ class ChatWindow:
                     self.top.after(0, self._add_action_result, result)
 
     def _add_action_result(self, result: str):
-        """Show action result as a small system bubble."""
-        self._add_bubble(result, is_action=True)
+        """Show action result with appropriate styling based on content."""
+        if result.startswith(("\u274c", "\u26a0")):
+            # ❌ or ⚠️ → error/warning styling
+            self._add_bubble(result, is_error=True)
+        else:
+            self._add_bubble(result, is_action=True)
 
     def _finish(self):
         self.is_streaming = False
