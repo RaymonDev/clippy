@@ -115,14 +115,15 @@ SYSTEM_PROMPT = (
 )
 GREETING = (
     "Hi! I'm Clippy! 📎\n\n"
-    "I can chat AND do things for you!\n\n"
-    "Try saying:\n"
+    "I'm your personal AI assistant, running entirely on your PC!\n\n"
+    "I can chat about anything, write code, or control your computer.\n\n"
+    "Try asking me to:\n"
     "• \"Open YouTube\"\n"
-    "• \"Google how to learn Python\"\n"
-    "• \"Open my Documents folder\"\n"
     "• \"Find PDF files on my Desktop\"\n"
-    "• \"Take a screenshot\"\n\n"
-    "Or just chat! Type below and press Enter."
+    "• \"Screen capture this\"\n"
+    "• \"Explain quantum mechanics\"\n"
+    "• \"Open Calculator\"\n\n"
+    "Double-click me to start chatting!"
 )
 
 # Clippy personality — random things Clippy says when idle
@@ -134,6 +135,9 @@ IDLE_TIPS = [
     "Tip: Double-click me to open the chat!",
     "Tip: I auto-start Ollama when you launch me!",
     "Tip: Press the ⚙ button to change my AI model!",
+    "Tip: I can open apps for you! Just say 'Open Calculator'.",
+    "Tip: Ask me to 'Find files named report' to search your documents.",
+    "Tip: Type 'take a screenshot' and I'll save one to your desktop!",
     # ── Helpful / Servicial ──
     "Need help with anything? I'm always here for you!",
     "I can help with coding, writing, brainstorming, or just chatting!",
@@ -142,12 +146,17 @@ IDLE_TIPS = [
     "I exist to help you. That's not a job — it's a calling.",
     "Remember: no question is too small. Or too weird. Try me.",
     "You've been working hard. Need a hand with something?",
+    "Writing an email? I can help you draft it!",
+    "Need a break? Ask me to open a relaxing YouTube video.",
     # ── Nostalgic / Fun facts ──
     "Did you know I was born in Microsoft Office 97?",
     "I missed you! It's been a while since Office 2003...",
     "Fun fact: My original name was Clippit!",
     "They removed me from Office, but they couldn't remove me from your heart.",
     "Bill Gates once called me 'the most annoying feature.' I call that fame.",
+    "It looks like you're writing a letter. Just kidding!",
+    "I may be old school, but my AI engine is brand new.",
+    "Remember the dog? Or the wizard? I miss those guys.",
     # ── Humor ──
     "I'd tell you a joke about UDP, but you might not get it.",
     "There are 10 types of people: those who understand binary and those who don't.",
@@ -157,6 +166,9 @@ IDLE_TIPS = [
     "They say AI will replace humans. But can AI hold two pieces of paper together? Didn't think so.",
     "I'm not saying I'm the best assistant, but have you seen Cortana lately?",
     "My code runs on caffeine and nostalgia.",
+    "Why did the developer go broke? Because he used up all his cache.",
+    "I'm not lazy, I'm just in energy-saving mode.",
+    "I don't have bugs, I have unexpected features.",
     # ── Deep / Philosophical ──
     "The best things in life aren't things. They're moments.",
     "You don't have to be perfect. You just have to be present.",
@@ -168,6 +180,8 @@ IDLE_TIPS = [
     "Your potential isn't defined by your past, but by your next decision.",
     "Be kind. Everyone you meet is fighting a battle you know nothing about.",
     "The universe is under no obligation to make sense to you — and that's beautiful.",
+    "Creativity is intelligence having fun.",
+    "Do or do not. There is no try.",
     # ── Privacy / Tech ──
     "Everything stays on your PC. No cloud. No snooping.",
     "I'm running 100% locally on your machine!",
@@ -1696,7 +1710,7 @@ class ClippyApp:
     def _roam_to(self, sx, sy, tx, ty):
         """Smoothly move Clippy from (sx,sy) to (tx,ty) using sub-pixel interpolation."""
         dist = math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2)
-        duration = max(600, int(dist * 3))  # slightly faster
+        duration = max(1500, int(dist * 8))  # slower movement
         start_t = time.perf_counter()
         # Track last rendered position to skip no-op geometry calls
         last_pos = [None, None]
