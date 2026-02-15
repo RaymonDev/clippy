@@ -23,6 +23,30 @@ import random
 import re
 import glob
 import webbrowser
+import urllib.parse
+import ctypes
+
+
+def _get_virtual_screen_bounds() -> tuple[int, int, int, int]:
+    """Return (left, top, right, bottom) of the full virtual desktop (all monitors).
+    Falls back to primary monitor dimensions on failure."""
+    try:
+        SM_XVIRTUALSCREEN = 76
+        SM_YVIRTUALSCREEN = 77
+        SM_CXVIRTUALSCREEN = 78
+        SM_CYVIRTUALSCREEN = 79
+        user32 = ctypes.windll.user32
+        left = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+        top = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+        w = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+        h = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        if w > 0 and h > 0:
+            return left, top, left + w, top + h
+    except Exception:
+        pass
+    # Fallback: primary monitor only
+    return 0, 0, 1920, 1080
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  CONFIGURATION
@@ -164,6 +188,8 @@ class Settings:
         self.idle_roaming: bool = True
         self.show_tips: bool = True
         self.auto_start_ollama: bool = True
+        self.pos_x: int | None = None   # Last saved X position (None = default)
+        self.pos_y: int | None = None   # Last saved Y position (None = default)
         self.load()
 
     def load(self):
@@ -177,6 +203,8 @@ class Settings:
                 self.idle_roaming = d.get("idle_roaming", self.idle_roaming)
                 self.show_tips = d.get("show_tips", self.show_tips)
                 self.auto_start_ollama = d.get("auto_start_ollama", self.auto_start_ollama)
+                self.pos_x = d.get("pos_x", self.pos_x)
+                self.pos_y = d.get("pos_y", self.pos_y)
         except Exception:
             pass
 
@@ -370,6 +398,7 @@ class ActionExecutor:
         "windows terminal": "wt",
         "powershell": "powershell",
         "spotify": "spotify",
+        "whatsapp": "whatsapp:",
         "code": "code",
         "vscode": "code",
         "vs code": "code",
@@ -485,6 +514,7 @@ class ActionExecutor:
         "microsoft edge": ["msedge", "msedge.exe"],
         "notepad": ["notepad", "notepad.exe"],
         "spotify": ["spotify", "spotify.exe"],
+        "whatsapp": ["WhatsApp", "WhatsApp.exe"],
         "discord": ["discord", "discord.exe", "update.exe"],
         "slack": ["slack", "slack.exe"],
         "teams": ["teams", "teams.exe", "ms-teams.exe"],
@@ -660,7 +690,6 @@ class IntentDetector:
         "wikipedia":    "https://www.wikipedia.org",
         "stackoverflow": "https://stackoverflow.com",
         "stack overflow": "https://stackoverflow.com",
-        "whatsapp":     "https://web.whatsapp.com",
         "whatsapp web": "https://web.whatsapp.com",
         "chatgpt":      "https://chat.openai.com",
         "spotify":      "https://open.spotify.com",
@@ -675,7 +704,7 @@ class IntentDetector:
         "paint", "word", "excel", "powerpoint",
         "discord", "slack", "teams", "obs", "vlc",
         "task manager", "control panel", "settings",
-        "snipping tool",
+        "snipping tool", "whatsapp",
     }
 
     # Folder shortcuts
@@ -1472,10 +1501,26 @@ class ClippyApp:
         # ── Auto-start Ollama ──
         self._startup_done = False
 
-        # Position and show
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        self.root.geometry(f"+{sw - 140}+{sh - 160}")
+        # Position: restore saved position or default to bottom-right of primary
+        vl, vt, vr, vb = _get_virtual_screen_bounds()
+        if self.settings.pos_x is not None and self.settings.pos_y is not None:
+            # Validate saved position is still on a visible screen area
+            sx = self.settings.pos_x
+            sy = self.settings.pos_y
+            if vl <= sx <= vr - 50 and vt <= sy <= vb - 50:
+                self._saved_pos = (sx, sy)
+            else:
+                self._saved_pos = None
+        else:
+            self._saved_pos = None
+
+        if self._saved_pos is None:
+            # Default: bottom-right of primary monitor
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            self._saved_pos = (sw - 140, sh - 160)
+
+        self.root.geometry(f"+{self._saved_pos[0]}+{self._saved_pos[1]}")
         self.root.deiconify()
 
         # Start!
@@ -1536,21 +1581,29 @@ class ClippyApp:
 
     # ── Intro Animation ──
 
+    def _save_position(self):
+        """Persist Clippy's current screen position to settings."""
+        try:
+            self.settings.pos_x = self.root.winfo_x()
+            self.settings.pos_y = self.root.winfo_y()
+            self.settings.save()
+        except Exception:
+            pass
+
     def _intro_animation(self):
         """Clippy bounces up from below the screen."""
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        target_x = sw - 140
-        target_y = sh - 160
-        start_y = sh + 60
+        target_x, target_y = self._saved_pos
+        # Start from just below the target (offset by 120px)
+        start_y = target_y + 120
 
         self.set_state("idle")
 
         duration = 800
-        start_t = time.time() * 1000
+        start_t = time.perf_counter()
+        last_y = [None]
 
         def _step():
-            elapsed = time.time() * 1000 - start_t
+            elapsed = (time.perf_counter() - start_t) * 1000
             p = min(elapsed / duration, 1.0)
 
             # Bounce ease-out
@@ -1566,11 +1619,13 @@ class ClippyApp:
                 t = p - 2.625 / 2.75
                 ease = 7.5625 * t * t + 0.984375
 
-            y = int(start_y + (target_y - start_y) * ease)
-            self.root.geometry(f"+{target_x}+{y}")
+            y = round(start_y + (target_y - start_y) * ease)
+            if y != last_y[0]:
+                self.root.geometry(f"+{target_x}+{y}")
+                last_y[0] = y
 
             if p < 1.0:
-                self.root.after(16, _step)
+                self.root.after(8, _step)
             else:
                 self.root.after(400, self._post_intro)
 
@@ -1620,43 +1675,58 @@ class ClippyApp:
             self._schedule_roam()
             return
 
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
+        # Use virtual screen bounds so Clippy can roam on any monitor
+        vl, vt, vr, vb = _get_virtual_screen_bounds()
         cx = self.root.winfo_x()
         cy = self.root.winfo_y()
 
-        # Random target within ±200px, clamped to screen
-        tx = max(20, min(sw - 110, cx + random.randint(-200, 200)))
-        ty = max(20, min(sh - 140, cy + random.randint(-150, 150)))
+        # Random target within ±200px, clamped to virtual desktop
+        tx = max(vl + 20, min(vr - 110, cx + random.randint(-200, 200)))
+        ty = max(vt + 20, min(vb - 140, cy + random.randint(-150, 150)))
 
         self._roam_to(cx, cy, tx, ty)
 
     def _roam_to(self, sx, sy, tx, ty):
-        """Smoothly move Clippy from (sx,sy) to (tx,ty)."""
+        """Smoothly move Clippy from (sx,sy) to (tx,ty) using sub-pixel interpolation."""
         dist = math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2)
-        duration = max(800, int(dist * 4))  # ~4ms per pixel
-        start_t = time.time() * 1000
+        duration = max(600, int(dist * 3))  # slightly faster
+        start_t = time.perf_counter()
+        # Track last rendered position to skip no-op geometry calls
+        last_pos = [None, None]
 
         def _step():
             if self._drag_data["dragging"]:
+                self._save_position()
                 self._schedule_roam()
                 return
-            elapsed = time.time() * 1000 - start_t
+            now = time.perf_counter()
+            elapsed = (now - start_t) * 1000
             p = min(elapsed / duration, 1.0)
 
-            # Ease in-out
-            ease = p * p * (3 - 2 * p)
+            # Smoother quintic ease in-out
+            if p < 0.5:
+                ease = 16 * p * p * p * p * p
+            else:
+                t = p - 1
+                ease = 1 + 16 * t * t * t * t * t
 
-            x = int(sx + (tx - sx) * ease)
-            y = int(sy + (ty - sy) * ease)
+            x = round(sx + (tx - sx) * ease)
+            y = round(sy + (ty - sy) * ease)
 
-            # Add a slight hop/wobble
-            hop = math.sin(p * math.pi) * 8
-            self.root.geometry(f"+{x}+{int(y - hop)}")
+            # Gentle hop/wobble
+            hop = round(math.sin(p * math.pi) * 6)
+            fy = y - hop
+
+            # Only update geometry when position actually changes
+            if x != last_pos[0] or fy != last_pos[1]:
+                self.root.geometry(f"+{x}+{fy}")
+                last_pos[0] = x
+                last_pos[1] = fy
 
             if p < 1.0:
-                self.root.after(16, _step)
+                self.root.after(8, _step)  # ~120fps target for smoother interpolation
             else:
+                self._save_position()
                 self._schedule_roam()
 
         _step()
@@ -1703,6 +1773,7 @@ class ClippyApp:
 
     def _drag_end(self, event):
         self._drag_data["dragging"] = False
+        self._save_position()
 
     # ── Context menu ──
 
@@ -1746,6 +1817,7 @@ class ClippyApp:
     # ── Quit ──
 
     def _quit(self):
+        self._save_position()
         self.speech.hide()
         if self.chat_window.is_open:
             self.chat_window.close()
